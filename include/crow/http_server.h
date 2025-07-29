@@ -26,6 +26,7 @@
 #include "crow/http_connection.h"
 #include "crow/logging.h"
 #include "crow/task_timer.h"
+#include "crow/thread_pool.h"
 #include "crow/socket_acceptors.h"
 
 
@@ -45,7 +46,7 @@ namespace crow // NOTE: Already documented in "crow/app.h"
     {
     public:
       Server(Handler* handler,
-             typename Acceptor::endpoint endpoint, 
+             typename Acceptor::endpoint endpoint,
              std::string server_name = std::string("Crow/") + VERSION,
              std::tuple<Middlewares...>* middlewares = nullptr,
              unsigned int concurrency = 1,
@@ -127,8 +128,7 @@ namespace crow // NOTE: Already documented in "crow/app.h"
             }
 
             uint16_t worker_thread_count = concurrency_ - 1;
-            for (int i = 0; i < worker_thread_count; i++)
-                io_context_pool_.emplace_back(new asio::io_context());
+            io_context_pool_.emplace(worker_thread_count);
             get_cached_date_str_pool_.resize(worker_thread_count);
             task_timer_pool_.resize(worker_thread_count);
 
@@ -200,8 +200,8 @@ namespace crow // NOTE: Already documented in "crow/app.h"
                   });
             }
             handler_->port(acceptor_.port());
-            CROW_LOG_INFO << server_name_ 
-                          << " server is running at " << acceptor_.url_display(handler_->ssl_used()) 
+            CROW_LOG_INFO << server_name_
+                          << " server is running at " << acceptor_.url_display(handler_->ssl_used())
                           << " using " << concurrency_ << " threads";
             CROW_LOG_INFO << "Call `app.loglevel(crow::LogLevel::Warning)` to hide Info level logs.";
 
@@ -242,20 +242,16 @@ namespace crow // NOTE: Already documented in "crow/app.h"
                 }
             }
 
-            for (auto& io_context : io_context_pool_)
-            {
-                if (io_context != nullptr)
-                {
-                    CROW_LOG_INFO << "Closing IO service " << &io_context;
-                    io_context->stop(); // Close all io_services (and HTTP connections)
-                }
+            if(io_context_pool_.has_value() && !io_context_pool_->stopped()){
+                CROW_LOG_INFO << "Closing IO service " << &io_context;
+                io_context_pool_->stop(); // Close all io_services (and HTTP connections)
             }
 
             CROW_LOG_INFO << "Closing main IO service (" << &io_context_ << ')';
             io_context_.stop(); // Close main io_service
         }
 
-        
+
         uint16_t port() const {
             return acceptor_.local_endpoint().port();
         }
@@ -308,7 +304,7 @@ namespace crow // NOTE: Already documented in "crow/app.h"
                 auto p = std::make_shared<Connection<Adaptor, Handler, Middlewares...>>(
                     ic, handler_, server_name_, middlewares_,
                     get_cached_date_str_pool_[context_idx], *task_timer_pool_[context_idx], adaptor_ctx_, task_queue_length_pool_[context_idx]);
-                    
+
                 CROW_LOG_DEBUG << &ic << " {" << context_idx << "} queue length: " << task_queue_length_pool_[context_idx];
 
                 acceptor_.raw_acceptor().async_accept(
@@ -337,7 +333,7 @@ namespace crow // NOTE: Already documented in "crow/app.h"
     private:
         unsigned int concurrency_{2};
         std::vector<std::atomic<unsigned int>> task_queue_length_pool_;
-        std::vector<std::unique_ptr<asio::io_context>> io_context_pool_;
+        std::optional<ThreadPool> io_context_pool_;
         asio::io_context io_context_;
         std::vector<detail::task_timer*> task_timer_pool_;
         std::vector<std::function<std::string()>> get_cached_date_str_pool_;

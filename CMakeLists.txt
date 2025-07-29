@@ -21,7 +21,7 @@ if (CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
 endif()
 
 # Set required C++ standard
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED TRUE)
 
 # Default to build type "Release" unless tests are being built
@@ -132,6 +132,7 @@ if(CROW_AMALGAMATE)
 		include/crow/settings.h
 		include/crow/socket_adaptors.h
 		include/crow/task_timer.h
+		include/crow/thread_pool.h
 		include/crow/utility.h
 		include/crow/version.h
 		include/crow/websocket.h
