@@ -219,6 +219,15 @@ namespace crow
             }
         }
 
+        void too_many_request()
+        {
+            res = response(crow::status::TOO_MANY_REQUESTS);
+            res.end();
+            parser_.done();
+            need_to_call_after_handlers_ = true;
+            complete_request();
+        }
+
         /// Call the after handle middleware and send the write the response to the connection.
         void complete_request()
         {

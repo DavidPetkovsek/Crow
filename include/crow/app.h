@@ -297,6 +297,12 @@ namespace crow
             return signals_;
         }
 
+        self_t& max_task_queue_length(unsigned int max_queue_length)
+        {
+            max_task_queue_length_ = max_queue_length;
+            return *this;
+        }
+
         /// \brief Set the port that Crow will handle requests on
         self_t& port(std::uint16_t port)
         {
@@ -533,7 +539,7 @@ namespace crow
                 }
                 tcp::endpoint endpoint(addr, port_);
                 router_.using_ssl = true;
-                ssl_server_ = std::move(std::unique_ptr<ssl_server_t>(new ssl_server_t(this, endpoint, server_name_, &middlewares_, concurrency_, timeout_, &ssl_context_)));
+                ssl_server_ = std::move(std::unique_ptr<ssl_server_t>(new ssl_server_t(this, endpoint, server_name_, &middlewares_, concurrency_, timeout_, &ssl_context_, max_task_queue_length_)));
                 ssl_server_->set_tick_function(tick_interval_, tick_function_);
                 ssl_server_->signal_clear();
                 for (auto snum : signals_)
@@ -549,7 +555,7 @@ namespace crow
                 if (use_unix_)
                 {
                     UnixSocketAcceptor::endpoint endpoint(bindaddr_);
-                    unix_server_ = std::move(std::unique_ptr<unix_server_t>(new unix_server_t(this, endpoint, server_name_, &middlewares_, concurrency_, timeout_, nullptr)));
+                    unix_server_ = std::move(std::unique_ptr<unix_server_t>(new unix_server_t(this, endpoint, server_name_, &middlewares_, concurrency_, timeout_, nullptr, max_task_queue_length_)));
                     unix_server_->set_tick_function(tick_interval_, tick_function_);
                     for (auto snum : signals_)
                     {
@@ -567,7 +573,7 @@ namespace crow
                         return;
                     }
                     TCPAcceptor::endpoint endpoint(addr, port_);
-                    server_ = std::move(std::unique_ptr<server_t>(new server_t(this, endpoint, server_name_, &middlewares_, concurrency_, timeout_, nullptr)));
+                    server_ = std::move(std::unique_ptr<server_t>(new server_t(this, endpoint, server_name_, &middlewares_, concurrency_, timeout_, nullptr, max_task_queue_length_)));
                     server_->set_tick_function(tick_interval_, tick_function_);
                     for (auto snum : signals_)
                     {
@@ -800,6 +806,7 @@ namespace crow
         }
 
     private:
+        unsigned int max_task_queue_length_{static_cast<unsigned int>(-1)};
         std::uint8_t timeout_{5};
         uint16_t port_ = 80;
         unsigned int concurrency_ = 2;

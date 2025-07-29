@@ -45,12 +45,14 @@ namespace crow // NOTE: Already documented in "crow/app.h"
     {
     public:
       Server(Handler* handler,
-             typename Acceptor::endpoint endpoint, 
+             typename Acceptor::endpoint endpoint,
              std::string server_name = std::string("Crow/") + VERSION,
              std::tuple<Middlewares...>* middlewares = nullptr,
              unsigned int concurrency = 1,
              uint8_t timeout = 5,
-             typename Adaptor::context* adaptor_ctx = nullptr):
+             typename Adaptor::context* adaptor_ctx = nullptr,
+             unsigned int max_task_queue_length = static_cast<unsigned int>(-1)):
+          max_task_queue_length_(max_task_queue_length),
           concurrency_(concurrency),
           task_queue_length_pool_(concurrency_ - 1),
           acceptor_(io_context_),
@@ -200,8 +202,8 @@ namespace crow // NOTE: Already documented in "crow/app.h"
                   });
             }
             handler_->port(acceptor_.port());
-            CROW_LOG_INFO << server_name_ 
-                          << " server is running at " << acceptor_.url_display(handler_->ssl_used()) 
+            CROW_LOG_INFO << server_name_
+                          << " server is running at " << acceptor_.url_display(handler_->ssl_used())
                           << " using " << concurrency_ << " threads";
             CROW_LOG_INFO << "Call `app.loglevel(crow::LogLevel::Warning)` to hide Info level logs.";
 
@@ -255,7 +257,7 @@ namespace crow // NOTE: Already documented in "crow/app.h"
             io_context_.stop(); // Close main io_service
         }
 
-        
+
         uint16_t port() const {
             return acceptor_.local_endpoint().port();
         }
@@ -308,21 +310,26 @@ namespace crow // NOTE: Already documented in "crow/app.h"
                 auto p = std::make_shared<Connection<Adaptor, Handler, Middlewares...>>(
                     ic, handler_, server_name_, middlewares_,
                     get_cached_date_str_pool_[context_idx], *task_timer_pool_[context_idx], adaptor_ctx_, task_queue_length_pool_[context_idx]);
-                    
+
                 CROW_LOG_DEBUG << &ic << " {" << context_idx << "} queue length: " << task_queue_length_pool_[context_idx];
 
                 acceptor_.raw_acceptor().async_accept(
-                  p->socket(),
-                  [this, p, &ic, context_idx](error_code ec) {
-                      if (!ec)
-                      {
-                          asio::post(ic,
-                            [p] {
-                                p->start();
-                            });
-                      }
-                      do_accept();
-                  });
+                    p->socket(),
+                    [this, p, &ic, context_idx](error_code ec) {
+                        if (!ec)
+                        {
+                            if(task_queue_length_pool_[context_idx] < max_task_queue_length_){
+                                asio::post(ic,
+                                    [p] {
+                                        p->start();
+                                    }
+                                );
+                            }else{
+                                p->too_many_request();
+                            }
+                        }
+                        do_accept();
+                    });
             }
         }
 
@@ -335,6 +342,7 @@ namespace crow // NOTE: Already documented in "crow/app.h"
         }
 
     private:
+        unsigned int max_task_queue_length_{static_cast<unsigned int>(-1)};
         unsigned int concurrency_{2};
         std::vector<std::atomic<unsigned int>> task_queue_length_pool_;
         std::vector<std::unique_ptr<asio::io_context>> io_context_pool_;
