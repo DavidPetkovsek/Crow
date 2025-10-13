@@ -52,7 +52,7 @@ jobs:
          elif [ "$RUNNER_OS" == "Windows" ]; then
               VCPKG_DEFAULT_TRIPLET=x64-windows vcpkg install
          elif [ "$RUNNER_OS" == "macOS" ]; then
-              brew install asio openssl zlib
+              brew install asio openssl zlib coreutils
          else
               echo "$RUNNER_OS not supported"
               exit 1
@@ -140,7 +140,6 @@ jobs:
       run: cmake --build . --target package
 
     - name: Generate checksums
-      if: matrix.os == 'ubuntu-latest' && matrix.compiler == 'gcc' && matrix.cxx_stdlib == 'libstdc++' && matrix.asio_type == 'boost' && startsWith(github.ref, 'refs/heads/v')
       working-directory: ${{github.workspace}}/build
       run: |
         for f in Crow-* crow_all.h; do
@@ -148,11 +147,14 @@ jobs:
           sha256sum "$f" | awk '{print $1}' > "$f".sha256
           md5sum "$f"    | awk '{print $1}' > "$f".md5
         done
+        ls
+      shell: bash
 
     - uses: actions/upload-artifact@v7
       if: matrix.os == 'ubuntu-latest' && matrix.compiler == 'gcc' && matrix.cxx_stdlib == 'libstdc++' && matrix.asio_type == 'boost' && startsWith(github.ref, 'refs/tags/v')
       with:
         name: packages
+        overwrite: true
         path: |
           ${{github.workspace}}/build/Crow-*
           ${{github.workspace}}/build/crow_all.h
