@@ -142,7 +142,7 @@ namespace crow
                 need_to_call_after_handlers_ = true;
                 complete_request();
             }
-            if (!routing_handle_result_->rule_index && req_.method == HTTPMethod::Options)
+            if (!routing_handle_result_->rule_index && !routing_handle_result_->catch_all && req_.method == HTTPMethod::Options)
             {
                 parser_.done();
                 need_to_call_after_handlers_ = true;
