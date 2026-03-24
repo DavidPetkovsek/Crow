@@ -1,5 +1,9 @@
 #pragma once
 
+#ifndef _WIN32
+#include <cstring>
+#include <cerrno>
+#endif
 #ifdef CROW_USE_BOOST
 #include <boost/asio.hpp>
 #ifdef CROW_ENABLE_SSL
@@ -75,6 +79,12 @@ namespace crow // NOTE: Already documented in "crow/app.h"
             acceptor_.raw_acceptor().open(endpoint.protocol(), ec);
             if (ec) {
                 CROW_LOG_ERROR << "Failed to open acceptor: " << ec.message();
+                startup_failed_ = true;
+                return;
+            }
+
+            if(set_cloexec(acceptor_.raw_acceptor().native_handle()) == -1){
+                CROW_LOG_ERROR << "Failed to set FD_CLOEXEC on start: " << std::strerror(errno);
                 startup_failed_ = true;
                 return;
             }
@@ -320,6 +330,10 @@ namespace crow // NOTE: Already documented in "crow/app.h"
                     [this, p, &ic, context_idx](error_code ec) {
                         if (!ec)
                         {
+                            if(set_cloexec(p->socket().native_handle()) == -1){
+                                CROW_LOG_ERROR << "Failed to set FD_CLOEXEC on accepted socket: " << std::strerror(errno);
+                            }
+
                             if(task_queue_length_pool_[context_idx] < max_task_queue_length_){
                                 asio::post(ic,
                                     [p] {
