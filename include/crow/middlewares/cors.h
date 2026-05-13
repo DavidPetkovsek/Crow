@@ -20,6 +20,14 @@ namespace crow
             return *this;
         }
 
+        /// Set Access-Control-Allow-Private-Network to true. Default is false
+        CORSRules& allow_private()
+        {
+            allow_private_ = true;
+            return *this;
+        }
+
+
         /// Set Access-Control-Allow-Methods. Default is "*"
         CORSRules& methods(crow::HTTPMethod method)
         {
@@ -127,6 +135,7 @@ namespace crow
             set_header_no_override("Access-Control-Allow-Headers", headers_, res);
             set_header_no_override("Access-Control-Expose-Headers", exposed_headers_, res);
             set_header_no_override("Access-Control-Max-Age", max_age_, res);
+            set_header_no_override("Access-Control-Allow-Private-Network", allow_private_?"true":"false", res);
 
             bool origin_set = false;
 
@@ -156,6 +165,7 @@ namespace crow
         std::string exposed_headers_;
         std::string max_age_;
         bool allow_credentials_ = false;
+        bool allow_private_ = false;
 
         CORSHandler* handler_;
     };
